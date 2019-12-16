@@ -11,7 +11,8 @@ gcloud container clusters create mesh-cluster \
   --cluster-version latest \
   --num-nodes 4 \
   --machine-type n1-standard-8 \
-  --services-ipv4-cidr "172.16.0.0/16"
+  --services-ipv4-cidr "172.16.0.0/16" \
+  --enable-ip-alias
 
 gcloud container clusters get-credentials mesh-cluster
 
@@ -25,6 +26,7 @@ Install Istio:
 ```bash
 curl -sLO https://github.com/istio/istio/releases/download/1.4.2/istio-1.4.2-osx.tar.gz
 tar xfvz istio-1.4.2-osx.tar.gz
+cd istio-1.4.2
 # Create the istio-system namespace
 kubectl create namespace istio-system
 # Apply the samples certificates
@@ -36,9 +38,11 @@ kubectl create secret generic cacerts -n istio-system \
 # Install with the operator
 istioctl manifest generate \
     -f install/kubernetes/operator/examples/vm/values-istio-meshexpansion-gateways.yaml \
-    --set coreDNS.enabled=true --set tag=1.4.2 --set controlPlaneSecurityEnabled=true > istio.yaml
+    --set tag=1.4.2 > istio.yml
 # Apply manifests
-istioctl manifest apply -f istio.yml
+kubectl apply -f istio.yml
+# Somehow there is a bug with istioctl manifest
+# istioctl manifest apply -f istio.yml
 # Verify Installation
 istioctl verify-install -f istio.yml
 ```
@@ -77,7 +81,19 @@ ISTIO_NAMESPACE=expandvm
 EOF
 ```
 
-Finally `register` the vm:
+### VM Setup
+
+Now we can create a VM to expand the mesh:
+
+```bash
+gcloud compute instances create expand-vm \
+    --image-family ubuntu-1804-lts \
+    --image-project ubuntu-os-cloud
+# Copy the local files to the machine
+gcloud compute scp --recurse ./expandvm ubuntu@expand-vm:/tmp
+```
+
+`register` the vm:
 
 ```bash
 istioctl register expandvm -s expandvm -n expandvm $(gcloud compute instances describe expand-vm --format=json | jq -r ".networkInterfaces[].accessConfigs[].natIP") 80
@@ -89,23 +105,12 @@ istioctl register expandvm -s expandvm -n expandvm $(gcloud compute instances de
 2019-12-12T18:48:07.619944Z	info	Details: &Endpoints{ObjectMeta:{expandvm  expandvm /api/v1/namespaces/expandvm/endpoints/expandvm e9c7ce72-1d0f-11ea-96e9-42010a840013 9893 0 2019-12-12 19:47:57 +0100 CET <nil> <nil> map[] map[alpha.istio.io/kubernetes-serviceaccounts:expandvm] [] []  []},Subsets:[]EndpointSubset{EndpointSubset{Addresses:[]EndpointAddress{EndpointAddress{IP:35.187.36.54,TargetRef:nil,Hostname:,NodeName:nil,},},NotReadyAddresses:[]EndpointAddress{},Ports:[]EndpointPort{EndpointPort{Name:http,Port:80,Protocol:TCP,},},},},}
 ```
 
-### VM Setup
-
-Now we can create a VM to expand the mesh:
-
-```bash
-gcloud compute instances create expand-vm \
-    --image-family ubuntu-1804-lts \
-    --image-project ubuntu-os-cloud
-# Copy the local files to the machine
-gcloud compute scp --recurse ./expandvm ubuntu@expand-vm:/tmp
-# SSH into the machine
-gcloud compute ssh ubuntu@expand-vm
-```
-
 Now we can install Istio on the VM:
 
 ```bash
+# SSH into the machine
+gcloud compute ssh ubuntu@expand-vm
+# Install the istio node_agent
 curl -L https://storage.googleapis.com/istio-release/releases/1.4.2/deb/istio-sidecar.deb > istio-sidecar.deb
 sudo dpkg -i istio-sidecar.deb
 ```
@@ -126,7 +131,7 @@ Copy the certificates:
 
 ```bash
 sudo mkdir -p /etc/certs
-sudo cp /tmp/expandvm/{root-cert.pem,cert-chain.pem,key.pem} /etc/certs
+sudo mv /tmp/expandvm/{root-cert.pem,cert-chain.pem,key.pem} /etc/certs
 ```
 
 and set the `cluster.env`:
@@ -170,7 +175,7 @@ echo "Y" | gcloud compute instances delete expand-vm  --delete-disks=all
 
 ## Gotchas
 
-The new `istioctl manifest` operator seem to not install the default DestinationRule (for mTLS) which means we need to add these to DestinationRules if we enable mTLS STRICT:
+The new `istioctl manifest` operator seems to not install the default DestinationRule (for mTLS) which means we need to add these to DestinationRules if we enable mTLS STRICT:
 
 ```bash
 kubectl apply -n istio-system -f - << EOF
