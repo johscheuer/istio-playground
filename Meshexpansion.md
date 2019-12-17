@@ -162,6 +162,13 @@ $ sudo /usr/local/bin/istio-node-agent-start.sh
 2019-12-12T19:44:01.228440Z	info	CSR is approved successfully. Will renew cert in 1079h59m59.771856842s
 ```
 
+Now we can start the `node_agent` and the `istio_agent`:
+
+```bash
+sudo systemctl start istio-auth-node-agent
+sudo systemctl start istio
+```
+
 ## Cleanup
 
 ```bash
