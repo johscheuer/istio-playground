@@ -24,6 +24,8 @@ kubectl create clusterrolebinding cluster-admin-binding \
 Install Istio:
 
 ```bash
+TMP_DIR=$(mktemp -d)
+pushd ${TMP_DIR}
 curl -sLO https://github.com/istio/istio/releases/download/1.4.2/istio-1.4.2-osx.tar.gz
 tar xfvz istio-1.4.2-osx.tar.gz
 cd istio-1.4.2
@@ -38,11 +40,10 @@ kubectl create secret generic cacerts -n istio-system \
 # Install with the operator
 istioctl manifest generate \
     -f install/kubernetes/operator/examples/vm/values-istio-meshexpansion-gateways.yaml \
-    --set tag=1.4.2 > istio.yml
-# Apply manifests
-kubectl apply -f istio.yml
+    --set tag=1.4.2 --set values.global.mtls.enabled=true > istio.yml
 # Somehow there is a bug with istioctl manifest
-# istioctl manifest apply -f istio.yml
+# istioctl manifest apply -f istio.yml so we stick with kubectl apply
+kubectl apply -f istio.yml
 # Verify Installation
 istioctl verify-install -f istio.yml
 ```
@@ -81,6 +82,28 @@ ISTIO_NAMESPACE=expandvm
 EOF
 ```
 
+In order to be able to talk to `Citadel` we need the following DestinationRule:
+
+```bash
+kubectl apply -n istio-system -f - << EOF
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: meshexpansion-dr-citadel
+  namespace: istio-system
+  labels:
+    istio: citadel
+spec:
+  host: istio-citadel.istio-system.svc.cluster.local
+  trafficPolicy:
+    portLevelSettings:
+    - port:
+        number: 8060
+      tls:
+        mode: DISABLE
+EOF
+```
+
 ### VM Setup
 
 Now we can create a VM to expand the mesh:
@@ -96,7 +119,7 @@ gcloud compute scp --recurse ./expandvm ubuntu@expand-vm:/tmp
 `register` the vm:
 
 ```bash
-istioctl register expandvm -s expandvm -n expandvm $(gcloud compute instances describe expand-vm --format=json | jq -r ".networkInterfaces[].accessConfigs[].natIP") 80
+istioctl x add-to-mesh external-service -s expandvm -n expandvm expandvm $(gcloud compute instances describe expand-vm --format=json | jq -r ".networkInterfaces[].accessConfigs[].natIP") 80
 2019-12-12T18:48:07.180840Z	info	Registering for service 'expandvm' ip '35.187.36.54', ports list [{80 http}]
 2019-12-12T18:48:07.180867Z	info	0 labels ([]) and 1 annotations ([alpha.istio.io/kubernetes-serviceaccounts=expandvm])
 2019-12-12T18:48:07.577906Z	info	Before: found endpoints &Endpoints{ObjectMeta:{expandvm  expandvm /api/v1/namespaces/expandvm/endpoints/expandvm e9c7ce72-1d0f-11ea-96e9-42010a840013 9856 0 2019-12-12 19:47:57 +0100 CET <nil> <nil> map[] map[alpha.istio.io/kubernetes-serviceaccounts:expandvm] [] []  []},Subsets:[]EndpointSubset{},}
@@ -122,8 +145,6 @@ export GWIP=$(cat /tmp/expandvm/gwip.txt)
 sudo tee -a /etc/hosts <<EOF
 ${GWIP} istio-citadel istio-citadel.istio-system
 ${GWIP} istio-pilot istio-pilot.istio-system
-${GWIP} istio-telemetry istio-telemetry.istio-system
-${GWIP} istio-policy istio-policy.istio-system
 EOF
 ```
 
@@ -162,6 +183,13 @@ $ sudo /usr/local/bin/istio-node-agent-start.sh
 2019-12-12T19:44:01.228440Z	info	CSR is approved successfully. Will renew cert in 1079h59m59.771856842s
 ```
 
+If you use Istio `1.4.2` create symlinks to resolve an [issue](https://github.com/istio/istio/issues/19615):
+
+```bash
+sudo ln -s /usr/local/bin/istio-clean-iptables.sh /usr/local/bin/istio-clean-iptables
+sudo ln -s /usr/local/bin/istio-iptables.sh /usr/local/bin/istio-iptables
+```
+
 Now we can start the `node_agent` and the `istio_agent`:
 
 ```bash
@@ -178,40 +206,6 @@ kubectl delete ns --all
 echo "Y" | gcloud container clusters delete mesh-cluster --async
 # Destroy the VM
 echo "Y" | gcloud compute instances delete expand-vm  --delete-disks=all
-```
-
-## Gotchas
-
-The new `istioctl manifest` operator seems to not install the default DestinationRule (for mTLS) which means we need to add these to DestinationRules if we enable mTLS STRICT:
-
-```bash
-kubectl apply -n istio-system -f - << EOF
-apiVersion: networking.istio.io/v1alpha3
-kind: DestinationRule
-metadata:
-  name: default
-spec:
-  host: "*.local"
-  trafficPolicy:
-    tls:
-      mode: ISTIO_MUTUAL
-EOF
-
-kubectl apply -n istio-system -f - << EOF
-apiVersion: networking.istio.io/v1alpha3
-kind: DestinationRule
-metadata:
-  name: meshexpansion-dr-citadel
-  namespace: istio-system
-  labels:
-    istio: citadel
-spec:
-  host: istio-citadel.istio-system.svc.cluster.local
-  trafficPolicy:
-    portLevelSettings:
-    - port:
-        number: 8060
-      tls:
-        mode: DISABLE
-EOF
+# Change back to default dir
+popd
 ```
