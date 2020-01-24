@@ -274,5 +274,5 @@ kubectl --context=${CTX_CLUSTER_A} delete ns istio-system
 kubectl --context=${CTX_CLUSTER_B} delete ns istio-system
 # Remove the GKE clusters
 gcloud container clusters delete cluster-a --zone=europe-north1-b
-gcloud container clusters create cluster-b --zone=europe-west1-b
+gcloud container clusters delete cluster-b --zone=europe-west1-b
 ```
