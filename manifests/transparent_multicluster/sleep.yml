@@ -1,0 +1,47 @@
+# https://istio.io/docs/ops/deployment/requirements/
+#   .-'---`-.
+# ,'          `.
+# |             \
+# |              \
+# \           _  \
+# ,\  _    ,'-,/-)\
+# ( * \ \,' ,' ,'-)
+#  `._,)     -',-')
+#    \/         ''/
+#     )        / /
+#    /       ,'-'
+apiVersion: v1
+kind: Service
+metadata:
+  name: sleep-svc
+  labels:
+    app: sleep-svc
+spec:
+  ports:
+  - name: http
+    port: 65535
+  selector:
+    app: sleep-svc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sleep-svc
+  labels:
+    app: sleep-svc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sleep-svc
+  template:
+    metadata:
+      labels:
+        app: sleep-svc
+    spec:
+      containers:
+      - name: sleep
+        image: curlimages/curl:7.68.0
+        command: ["/bin/sleep", "999999999"]
+        securityContext:
+          runAsUser: 1000

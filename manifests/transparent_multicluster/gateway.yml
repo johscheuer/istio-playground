@@ -1,0 +1,25 @@
+# Source: istio/charts/gateways/templates/preconfigured.yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: istio-multicluster-ingressgateway
+  namespace: istio-system
+  labels:
+    app: gateways
+    chart: gateways
+    heritage: Helm
+    release: istio
+spec:
+  selector:
+    app: istio-ingressgateway
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - "*.global"
+    - "*.svc.cluster.local"
+    port:
+      name: tls
+      number: 15443
+      protocol: TLS
+    tls:
+      mode: AUTO_PASSTHROUGH

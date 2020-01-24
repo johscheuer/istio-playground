@@ -1,0 +1,12 @@
+global:
+    multiCluster:
+      enabled: true
+
+    mtls:
+      enabled: true
+
+    controlPlaneSecurityEnabled: true
+
+# In a multiple cluster environment, citadel uses the same root certificate in all the clusters
+security:
+    selfSigned: false
