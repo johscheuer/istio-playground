@@ -55,7 +55,7 @@ kubectl --context=${CTX_CLUSTER_B} get nodes -L failure-domain.beta.kubernetes.i
 At first we need the according binaries and helm charts:
 
 ```bash
-export ISTIO_VERSION="1.4.3"
+export ISTIO_VERSION="1.4.4"
 curl -Lo istio.tar.gz "https://github.com/istio/istio/releases/download/${ISTIO_VERSION}/istio-${ISTIO_VERSION}-osx.tar.gz"
 tar xfz istio.tar.gz
 rm istio.tar.gz

@@ -29,7 +29,6 @@ spec:
       annotations:
         sidecar.istio.io/inject: "true"
     spec:
-      terminationGracePeriodSeconds: 0
       containers:
       - name: hello
         image: istio/examples-helloworld-v1
