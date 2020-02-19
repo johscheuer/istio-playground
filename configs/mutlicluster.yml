@@ -10,3 +10,6 @@ global:
 # In a multiple cluster environment, citadel uses the same root certificate in all the clusters
 security:
     selfSigned: false
+
+kiali:
+  enabled: trues

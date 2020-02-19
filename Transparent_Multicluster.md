@@ -200,7 +200,7 @@ spec:
   resolution: STATIC
   location: MESH_INTERNAL
   endpoints:
-  - address: $(kubectl ${CTX_CLUSTER_B} -n istio-system get svc istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+  - address: $(kubectl --context=${CTX_CLUSTER_B} -n istio-system get svc istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
     locality: europe-west1/europe-west1-b
     ports:
       http: 15443
@@ -266,6 +266,23 @@ Hello version: gke_pg-tm-cloud_europe-west1-b_cluster-b, instance: call-me-maybe
 ```
 
 You can also add multiple remote clusters by adding multiple endpoints in the `ServiceEntry`.
+
+## Visualize
+
+For the Service Mesh visualization we use [Kiali](https://kiali.io).
+Before we can access the dashboard we need to create an user and a password:
+
+```bash
+kubectl --context=${CTX_CLUSTER_A} -n istio-system create secret generic kiali --from-literal=username=admin --from-literal=passphrase=admin
+```
+
+Now we can use the `port-forward` command to access the dashboard:
+
+```bash
+kubectl --context=${CTX_CLUSTER_A} -n istio-system port-forward svc/kiali 20001:20001
+```
+
+Go to: [kiali](http://localhost:20001/kiali/) and enter use the user from above.
 
 ## Cleanup
 
